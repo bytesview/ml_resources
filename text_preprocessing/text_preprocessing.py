@@ -108,6 +108,8 @@ def trim_long_rows(dataframe: pd.DataFrame, column_name: str, max_words: int) ->
         
     Returns:
         pd.DataFrame: The updated DataFrame with trimmed rows.
+
+        test comment
     """
     if column_name not in dataframe.columns:
         return dataframe
