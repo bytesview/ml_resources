@@ -1,7 +1,7 @@
 import pandas as pd
 from newsdataapi import NewsDataApiClient
 
-api = NewsDataApiClient(apikey="pub_192434d735e59ed461036c57ce13fca29a207")
+api = NewsDataApiClient(apikey="YOUR_API_KEY")
 
 page_count = 0
 num_pages = 10
