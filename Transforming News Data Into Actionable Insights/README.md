@@ -24,6 +24,7 @@ Before running the News Intelligence Dashboard, ensure you have:
 1. Clone the repository
    ```bash
    git clone <your-repository-url>
+   cd ml_resources
    cd Transforming News Data Into Actionable Insights
    ```
 
