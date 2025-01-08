@@ -45,7 +45,7 @@ Before running the News Intelligence Dashboard, ensure you have:
 
 4. Set up environment variables
    ```bash
-   Add your API key in .env file
+   # Add your API key in .env file
    ```
 
 5. Run the application
