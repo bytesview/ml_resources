@@ -24,7 +24,7 @@ Before running the News Intelligence Dashboard, ensure you have:
 1. Clone the repository
    ```bash
    git clone <your-repository-url>
-   cd news-intelligence-dashboard
+   cd Transforming News Data Into Actionable Insights
    ```
 
 2. Set up virtual environment
@@ -40,7 +40,7 @@ Before running the News Intelligence Dashboard, ensure you have:
 
 3. Install dependencies
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirement.txt
    ```
 
 4. Set up environment variables
