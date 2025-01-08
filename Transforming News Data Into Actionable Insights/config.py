@@ -20,7 +20,7 @@ def load_api_key():
 
     if not api_key:
         st.error("NewsData.io API key not found! Please set the NEWSDATA_API_KEY environment variable.")
-        st.info("Create a .env file in your project root and add: NEWSDATA_API_KEY=your_api_key_here")
+        st.info("Add API key to .env file in the project: NEWSDATA_API_KEY=your_api_key_here")
         return None
 
     return api_key
