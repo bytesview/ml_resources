@@ -26,7 +26,7 @@ Before running the News Intelligence Dashboard, ensure you have:
 1. Clone the repository
    ```bash
    git clone https://github.com/bytesview/ml_resources.git
-   cd Transforming News Data Into Actionable Insights
+   cd ml_resources/Transforming News Data Into Actionable Insights
    ```
 
 2. Set up virtual environment
