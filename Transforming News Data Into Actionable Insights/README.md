@@ -1,31 +1,32 @@
-# News Intelligence Dashboard Architecture
+# News Intelligence Dashboard
 
 ## System Overview
-The News Intelligence Dashboard is built on a modern, layered architecture that processes and visualizes news data in real-time. This document outlines the complete system architecture and the interaction between different components.
+The News Intelligence Dashboard is a Streamlit-based application that connects to the NewsData.io API to fetch, analyze, and visualize news articles in real-time. The system provides comprehensive sentiment analysis, temporal trends, and content distribution insights through interactive visualizations.
 
 ## Table of Contents
 - [Getting Started](#getting-started)
 - [Architecture Diagram](#architecture-diagram)
 - [Component Details](#component-details)
+- [API Endpoints](#api-endpoints)
 - [Data Flow](#data-flow)
 - [Key Technologies](#key-technologies)
 - [Features](#features)
+- [Usage Guide](#usage-guide)
 - [License](#license)
 
 ## Getting Started
 
 ### Prerequisites
 Before running the News Intelligence Dashboard, ensure you have:
-- Python 3.10.14 or higher
+- Python 3.8 or higher
 - pip (Python package installer)
-- Git (for cloning the repository)
+- NewsData.io API key (get free key at [newsdata.io](https://newsdata.io))
 
-### Quick Start
+### Installation
 1. Clone the repository
    ```bash
    git clone <your-repository-url>
-   cd ml_resources
-   cd Transforming News Data Into Actionable Insights
+   cd news-intelligence-dashboard
    ```
 
 2. Set up virtual environment
@@ -41,18 +42,15 @@ Before running the News Intelligence Dashboard, ensure you have:
 
 3. Install dependencies
    ```bash
-   pip install -r requirement.txt
+   pip install streamlit pandas plotly requests
    ```
 
-4. Set up environment variables
-   ```bash
-   # Add your API key in .env file
-   ```
-
-5. Run the application
+4. Run the application
    ```bash
    streamlit run app.py
    ```
+
+5. Open your browser and navigate to `http://localhost:8501`
 
 ## Architecture Diagram
 
@@ -60,15 +58,15 @@ Before running the News Intelligence Dashboard, ensure you have:
 flowchart TB
     UI[Streamlit UI Layer]
     API[NewsData.io API]
-    Process[Data Processing Layer]
-    Viz[Visualization Layer]
-    Store[Data Storage]
+    Analyzer[NewsAnalyzer Class]
+    Processor[Data Processor]
+    Viz[Visualization Engine]
     
-    UI --> |User Input| Process
-    Process --> |API Request| API
-    API --> |JSON Response| Process
-    Process --> |Pandas DataFrame| Store
-    Store --> |Processed Data| Viz
+    UI --> |User Input| Analyzer
+    Analyzer --> |API Request| API
+    API --> |JSON Response| Analyzer
+    Analyzer --> |Raw Data| Processor
+    Processor --> |Pandas DataFrame| Viz
     Viz --> |Interactive Charts| UI
     
     subgraph Frontend
@@ -77,94 +75,168 @@ flowchart TB
     end
     
     subgraph Backend
-        Process
-        Store
+        Analyzer
+        Processor
     end
     
     subgraph External
-        API
+        API[NewsData.io API<br/>Archive & Latest Endpoints]
     end
+    
+    subgraph Features
+        F1[Sentiment Analysis]
+        F2[Temporal Analysis]
+        F3[Content Analysis]
+        F4[CSV Export]
+    end
+    
+    Viz --> Features
 ```
+
 ## Component Details
 
 ### Frontend Layer
-The frontend consists of two main components:
 
 1. **Streamlit UI Layer**
-   - Handles user interactions and input collection
-   - Provides responsive layout management
-   - Renders interactive visualizations
-   - Manages state and session data
+   - **Configuration Panel**: API key input and endpoint selection
+   - **Search Parameters**: Keyword input, region filter, date range selector
+   - **Dashboard Metrics**: Total articles, unique sources, regions covered, days covered
+   - **Interactive Tabs**: Sentiment, Temporal, and Content analysis views
+   - **Data Export**: CSV download functionality
 
-2. **Visualization Layer**
-   - Creates interactive charts using Plotly Express
-   - Processes data for visual representation
-   - Handles real-time updates
-   - Manages chart interactions and events
+2. **Visualization Engine**
+   - **Sentiment Charts**: Pie chart showing positive/negative/neutral distribution
+   - **Temporal Analysis**: Line chart of publication time distribution
+   - **Content Analysis**: Bar chart of top 10 news sources
+   - **Article Table**: Clickable article titles with metadata
 
 ### Backend Layer
-The backend layer manages data processing and storage:
 
-1. **Data Processing Layer**
-   - Validates user input
-   - Makes API requests to NewsData.io
-   - Transforms raw JSON data into structured format
-   - Handles error cases and edge conditions
+1. **NewsAnalyzer Class**
+   - **API Integration**: Hard-coded connection to NewsData.io (https://newsdata.io/api/1)
+   - **Parameter Validation**: Input validation for keywords and date ranges
+   - **Pagination Handling**: Automatic fetching of multiple pages
+   - **Region Filtering**: Client-side filtering by AI-detected regions
+   - **Error Handling**: Comprehensive error management and user feedback
 
-2. **Data Storage Layer**
-   - Maintains session-based data storage
-   - Manages DataFrame operations
-   - Handles data caching
-   - Provides data access patterns
+2. **Data Processing Layer**
+   - **JSON Transformation**: Converts API response to structured DataFrame
+   - **Data Enrichment**: Adds date-based features (hour, day_of_week)
+   - **Deduplication**: Removes duplicate articles based on title
+   - **Feature Engineering**: Creates analysis-ready data structure
 
-### External Services
-The system integrates with:
+## API Endpoints
 
-1. **NewsData.io API**
-   - Provides raw news data
-   - Handles authentication
-   - Manages rate limiting
-   - Supports pagination
+### Archive Endpoint
+- **Purpose**: Historical news search with custom date ranges
+- **Date Range**: Up to 2 years back from current date
+- **Parameters**: keyword, region filter, from_date, to_date
+- **Use Case**: Long-term trend analysis, historical research
+
+### Latest Endpoint
+- **Purpose**: Most recent news articles
+- **Date Range**: Automatically fetches latest articles (no date parameters)
+- **Parameters**: keyword, region filter only
+- **Use Case**: Real-time monitoring, breaking news analysis
 
 ## Data Flow
 
-1. **Input Processing**
-   - User enters search parameters
-   - System validates input
-   - Parameters are formatted for API request
+1. **User Input Collection**
+   ```
+   User Input → Parameter Validation → API Configuration
+   ```
 
-2. **Data Retrieval**
-   - System sends request to NewsData.io
-   - Handles pagination for large datasets
-   - Processes API response
-   - Transforms JSON to DataFrame
+2. **Data Retrieval Process**
+   ```
+   API Request → Pagination Loop → JSON Response → Region Filtering
+   ```
 
-3. **Data Analysis**
-   - Analyzes sentiment patterns
-   - Processes temporal data
-   - Aggregates regional information
-   - Generates statistical summaries
+3. **Data Processing Pipeline**
+   ```
+   Raw JSON → DataFrame Creation → Feature Engineering → Deduplication
+   ```
 
-4. **Visualization**
-   - Creates interactive charts
-   - Updates real-time metrics
-   - Renders data tables
-   - Handles user interactions
+4. **Analysis & Visualization**
+   ```
+   Processed Data → Statistical Analysis → Interactive Charts → User Dashboard
+   ```
 
 ## Key Technologies
-- **[Streamlit](https://docs.streamlit.io/)**: Frontend framework
-- **[Pandas](https://pandas.pydata.org/docs/)**: Data processing
-- **[Plotly Express](https://plotly.com/python/getting-started/)**: Data visualization
-- **[Python Requests](https://pypi.org/project/requests/)**: API communication
+
+| Technology | Purpose | Documentation |
+|------------|---------|---------------|
+| **Streamlit** | Web application framework | [docs.streamlit.io](https://docs.streamlit.io/) |
+| **Pandas** | Data manipulation and analysis | [pandas.pydata.org](https://pandas.pydata.org/docs/) |
+| **Plotly Express** | Interactive data visualization | [plotly.com/python](https://plotly.com/python/getting-started/) |
+| **Python Requests** | HTTP API communication | [docs.python-requests.org](https://docs.python-requests.org/) |
+| **NewsData.io API** | News data source | [newsdata.io](https://newsdata.io/documentation) |
 
 ## Features
-- Real-time news data processing
-- Interactive data visualizations
-- Sentiment analysis
-- Temporal data analysis
-- Regional information aggregation
-- Statistical summaries
+
+### Core Analytics
+- **Sentiment Analysis**: Automatic classification of article sentiment
+- **Temporal Trends**: Publication time distribution and patterns
+- **Source Analysis**: News source diversity and distribution
+- **Regional Coverage**: Geographic analysis of news coverage
+
+### Data Management
+- **Real-time Processing**: Live data fetching with progress tracking
+- **Pagination Support**: Automatic handling of large datasets
+- **Data Export**: CSV download for external analysis
+- **Error Recovery**: Robust error handling and user feedback
+
+### User Experience
+- **Interactive Dashboard**: Responsive charts and metrics
+- **Flexible Search**: Keyword and region-based filtering
+- **Endpoint Selection**: Choose between historical and latest news
+- **Progress Tracking**: Real-time feedback during data fetching
+
+## Usage Guide
+
+### Basic Search
+1. Enter your NewsData.io API key in the sidebar
+2. Select endpoint (Archive or Latest)
+3. Enter a search keyword (required)
+4. Optionally select a region filter
+5. For Archive: Choose date range (max 2 years)
+6. Click "Search News"
+
+### Advanced Features
+- **Region Filtering**: Select from 180+ countries for targeted analysis
+- **Date Range Selection**: Archive endpoint supports custom date ranges
+- **Data Export**: Download processed data as CSV for further analysis
+- **Real-time Updates**: Progress tracking during data fetching
+
+### Best Practices
+- Use specific keywords for focused results
+- Combine keyword and region filters for targeted analysis
+- Use Archive endpoint for trend analysis over time
+- Use Latest endpoint for real-time monitoring
+- Export data for deeper analysis in other tools
+
+## Error Handling
+The application includes comprehensive error handling for:
+- Invalid API keys or network issues
+- Malformed date ranges or parameters
+- API rate limiting and timeout scenarios
+- Empty result sets and data processing errors
+
+## Performance Considerations
+- Pagination automatically handles large datasets
+- Client-side region filtering for responsive experience
+- Progress tracking for long-running operations
+- Efficient DataFrame operations for data processing
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
-The MIT License is a permissive license that is short and to the point. It lets people do anything they want with your code as long as they provide attribution back to you and don't hold you liable.
+
+The MIT License is a permissive license that allows you to use, modify, and distribute this software freely, as long as you provide attribution to the original authors and don't hold them liable for any issues.
+
+---
+
+## Support
+For issues or questions:
+1. Check the [NewsData.io documentation](https://newsdata.io/documentation)
+2. Review the error messages in the application
+3. Ensure your API key is valid and active
+4. Verify your search parameters are within acceptable limits
