@@ -4,17 +4,15 @@ import streamlit as st
 import plotly.express as px
 from datetime import datetime, timedelta
 
-from config import load_api_key
-
 # Configuration and Setup
 st.set_page_config(page_title="News Intelligence Dashboard", layout="wide")
 
-# API Configuration
-NEWSDATA_API_KEY = load_api_key()
-
 class NewsAnalyzer:
-    def __init__(self, api_key):
+    def __init__(self, api_key, endpoint):
         self.api_key = api_key
+        self.base_url = "https://newsdata.io/api/1"  
+        self.endpoint = endpoint
+        self.full_url = f"{self.base_url.rstrip('/')}/{endpoint}"
         
     def validate_params(self, keyword, from_date=None, to_date=None):
         """
@@ -37,23 +35,34 @@ class NewsAnalyzer:
         if not keyword:
             errors.append("Keyword is required")
 
-        # Only validate dates if both are provided
-        if from_date and to_date:
-            try:
-                start_date = datetime.strptime(from_date, '%Y-%m-%d')
-                end_date = datetime.strptime(to_date, '%Y-%m-%d')
+        # Different validation logic for archive vs latest endpoints
+        if self.endpoint == "archive":
+            # Only validate dates if both are provided for archive endpoint
+            if from_date and to_date:
+                try:
+                    start_date = datetime.strptime(from_date, '%Y-%m-%d')
+                    end_date = datetime.strptime(to_date, '%Y-%m-%d')
 
-                # Check if date range is within allowed limits (e.g., 2 years)
-                if (end_date - start_date).days > 730:
-                    errors.append("Date range cannot exceed 30 days")
-            except ValueError:
-                errors.append("Invalid date format. Use YYYY-MM-DD")
+                    # Check if date range is within allowed limits (2 years for archive)
+                    if (end_date - start_date).days > 730:
+                        errors.append("Date range cannot exceed 2 years")
+                        
+                    # Check if dates are not in the future
+                    if end_date > datetime.now():
+                        errors.append("End date cannot be in the future")
+                        
+                except ValueError:
+                    errors.append("Invalid date format. Use YYYY-MM-DD")
+        elif self.endpoint == "latest":
+            # For latest endpoint, dates are automatically set to last 48 hours
+            # No date validation needed as it's handled automatically
+            pass
 
         return errors
         
     def fetch_and_analyze_news(self, keyword, ai_region, from_date=None, to_date=None):
         """
-        Fetch news from Newsdata.io API with progress tracking and error handling.
+        Fetch news from API with progress tracking and error handling.
 
         Parameters:
         keyword (str): The keyword to search for in the news articles.
@@ -64,23 +73,36 @@ class NewsAnalyzer:
         Returns:
         list: A list of dictionaries representing the fetched and analyzed news articles.
         """
-        # Validate parameters first
-        validation_errors = self.validate_params(keyword, from_date, to_date)
-        if validation_errors:
-            st.error("Validation errors:\n" + "\n".join(validation_errors))
-            return []
+        # For latest endpoint, show info but don't set date parameters
+        if self.endpoint == "latest":
+            st.info(f"🕒 Latest endpoint: Fetching the most recent news articles")
 
-        base_url = "https://newsdata.io/api/1/archive"
+        # Validate parameters first (only validate dates for archive endpoint)
+        if self.endpoint == "archive":
+            validation_errors = self.validate_params(keyword, from_date, to_date)
+            if validation_errors:
+                st.error("Validation errors:\n" + "\n".join(validation_errors))
+                return []
+        else:
+            # For latest endpoint, only validate keyword
+            validation_errors = self.validate_params(keyword)
+            if validation_errors:
+                st.error("Validation errors:\n" + "\n".join(validation_errors))
+                return []
+
         params = {
             "apikey": self.api_key,
             "q": keyword,
         }
 
-        # Only add date parameters if they're valid
-        if from_date:
-            params["from_date"] = from_date
-        if to_date:
-            params["to_date"] = to_date
+        # Add date parameters ONLY for archive endpoint
+        if self.endpoint == "archive":
+            # Only add date parameters if they're valid for archive
+            if from_date:
+                params["from_date"] = from_date
+            if to_date:
+                params["to_date"] = to_date
+        # For latest endpoint, don't add any date parameters
 
         all_results = []
         total_pages = None
@@ -90,8 +112,8 @@ class NewsAnalyzer:
             progress_text = st.empty()
             progress_bar = st.progress(0)
 
-            # Make the initial request
-            response = requests.get(base_url, params=params)
+            # Make the initial request using the full URL
+            response = requests.get(self.full_url, params=params)
 
             if response.status_code == 422:
                 error_msg = response.json().get('results', {}).get('message', 'Invalid request parameters')
@@ -141,7 +163,7 @@ class NewsAnalyzer:
                     progress_text.text(f"Fetching page {current_page} of approximately {total_pages} pages...")
                     progress_bar.progress(min(current_page / total_pages if total_pages > 0 else 0, 1.0))
 
-                    response = requests.get(base_url, params=params)
+                    response = requests.get(self.full_url, params=params)
                     if response.status_code == 200:
                         data = response.json()
                         new_results = []
@@ -262,10 +284,11 @@ def main():
 
     Features:
     1. Sidebar inputs for search parameters:
+        - API key (required)
         - Keyword (required)
         - Region filter (optional)
         - Date range (up to 2 years)
-    2. Real-time data fetching from the Newsdata.io API.
+    2. Real-time data fetching from the news API.
     3. Progress tracking and error handling during data retrieval.
     4. Sentiment analysis, temporal trends, and source distribution visualizations.
     5. Display of latest articles in a tabular format with download capability.
@@ -279,10 +302,27 @@ def main():
     st.title("News Intelligence Dashboard")
     st.write("Analyze news sentiment and track organizations in real-time")
     
-    # Initialize analyzer
-    analyzer = NewsAnalyzer(NEWSDATA_API_KEY)
-    
     # Sidebar inputs
+    st.sidebar.header("API Configuration")
+    
+    # API Configuration inputs
+    api_key = st.sidebar.text_input(
+        "API Key", 
+        type="password", 
+        help="Enter your NewsData.io API key"
+    )
+    
+    # Endpoint selection
+    endpoint = st.sidebar.selectbox(
+        "Select Endpoint",
+        ["archive", "latest"],
+        help="Archive: Historical news with custom date range | Latest: Recent news articles (no date selection)"
+    )
+    
+    # Validation for required fields
+    if not api_key:
+        st.sidebar.warning("⚠️ API Key is required")
+    
     st.sidebar.header("Search Parameters")
     keyword = st.sidebar.text_input("Enter keyword (required)")
     
@@ -320,125 +360,180 @@ def main():
 ]
     region = st.sidebar.selectbox("Select region (optional)", countries)
     
-    # Date range with validation
-    max_date = datetime.now()
-    min_date = max_date - timedelta(days=730)
-    date_range = st.sidebar.date_input(
-        "Select date range (max 2 years)",
-        [min_date, max_date],
-        min_value=min_date,
-        max_value=max_date
-    )
+    # Date range logic based on endpoint
+    if endpoint == "archive":
+        # Show date range selector for archive endpoint
+        max_date = datetime.now()
+        min_date = max_date - timedelta(days=730)  # 2 years back
+        date_range = st.sidebar.date_input(
+            "Select date range (max 2 years)",
+            [min_date, max_date],
+            min_value=min_date,
+            max_value=max_date,
+            help="Choose custom date range for historical news"
+        )
+    else:
+        # For latest endpoint, show info about automatic 48-hour range
+        st.sidebar.info("📅 Latest endpoint automatically fetches the most recent news articles")
+        date_range = None  # Will be set automatically in the analyzer
     
     search_button = st.sidebar.button("Search News")
     
+    # Main content area - show usage instructions if no API key
+    if not api_key:
+        st.info("👈 Please enter your API key in the sidebar to get started")
+        st.markdown("""
+        ### How to use this dashboard:
+        
+        1. **API Configuration**: 
+           - Enter your NewsData.io API key in the sidebar
+           - Select endpoint: **Archive** (historical news) or **Latest** (recent news)
+        2. **Search Parameters**: 
+           - Enter a keyword to search for (required)
+           - Optionally select a specific region/country
+           - **Archive endpoint**: Choose custom date range (up to 2 years)
+           - **Latest endpoint**: Automatically fetches recent news articles
+        3. **Click "Search News"** to fetch and analyze articles
+        
+        ### Endpoint Options:
+        - **📚 Archive**: Search historical news with custom date range (max 2 years back)
+        - **⚡ Latest**: Get the most recent news articles (no date selection needed)
+        
+        ### API Requirements:
+        - **NewsData.io API Key**: Get your free API key at [newsdata.io](https://newsdata.io)
+        
+        ### Features:
+        - Real-time sentiment analysis
+        - Temporal trend visualization  
+        - Source distribution analysis
+        - Article export functionality
+        - Automatic handling of recent news for latest endpoint
+        """)
+        return
+    
     if search_button and keyword:
-        if len(date_range) == 2:
-            from_date, to_date = date_range
+        # Handle different date logic for each endpoint
+        if endpoint == "archive":
+            if date_range and len(date_range) == 2:
+                from_date, to_date = date_range
+                
+                # Initialize analyzer with user-provided credentials
+                analyzer = NewsAnalyzer(api_key, endpoint)
+                
+                # Fetch and analyze news
+                with st.spinner("Fetching news data..."):
+                    news_data = analyzer.fetch_and_analyze_news(
+                        keyword,
+                        region,
+                        from_date.strftime('%Y-%m-%d'),
+                        to_date.strftime('%Y-%m-%d')
+                    )
+            else:
+                st.error("Please select both start and end dates for archive endpoint")
+                return
+        
+        elif endpoint == "latest":
+            # Initialize analyzer with user-provided credentials
+            analyzer = NewsAnalyzer(api_key, endpoint)
             
-            # Fetch and analyze news
-            with st.spinner("Fetching news data..."):
-                news_data = analyzer.fetch_and_analyze_news(
-                    keyword,
-                    region,
-                    from_date.strftime('%Y-%m-%d'),
-                    to_date.strftime('%Y-%m-%d')
-                )
-                
-                df = process_news_data(news_data)
-                
-                if not df.empty:
-                    # Display total articles fetched
-                    st.success(f"Successfully analyzed {len(df)} news articles.")
-                    
-                    # Create dashboard layout with metrics
-                    metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-                    
-                    with metrics_col1:
-                        st.metric("Total Articles", len(df))
-                    with metrics_col2:
-                        st.metric("Unique Sources", df['source_id'].nunique())
-                    with metrics_col3:
-                        st.metric("Regions Covered", df['ai_region'].nunique())
-                    with metrics_col4:
-                        time_span = (df['pubDate'].max() - df['pubDate'].min()).days
-                        st.metric("Days Covered", time_span)
+            # Fetch and analyze news (no date parameters needed for latest endpoint)
+            with st.spinner("Fetching latest news data..."):
+                news_data = analyzer.fetch_and_analyze_news(keyword, region)
+        
+        # Process and display results (common for both endpoints)
+        df = process_news_data(news_data)
+        
+        if not df.empty:
+            # Display total articles fetched
+            st.success(f"Successfully analyzed {len(df)} news articles using **{endpoint}** endpoint.")
+            
+            # Create dashboard layout with metrics
+            metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
+            
+            with metrics_col1:
+                st.metric("Total Articles", len(df))
+            with metrics_col2:
+                st.metric("Unique Sources", df['source_id'].nunique())
+            with metrics_col3:
+                st.metric("Regions Covered", df['ai_region'].nunique())
+            with metrics_col4:
+                time_span = (df['pubDate'].max() - df['pubDate'].min()).days
+                st.metric("Days Covered", time_span)
 
-                    # Create visualization layout
-                    st.subheader("News Analysis Dashboard")
-                    tab1, tab2, tab3 = st.tabs(["Sentiment Analysis", "Temporal Analysis", "Content Analysis"])
-                    
-                    with tab1:
-                        col1, = st.columns(1)
-                        
-                        with col1:
-                            # Sentiment distribution
-                            sentiment_counts = df['sentiment'].value_counts()
-                            fig_sentiment = px.pie(
-                                values=sentiment_counts.values,
-                                names=sentiment_counts.index,
-                                title='Sentiment Distribution',
-                                color_discrete_sequence=px.colors.qualitative.Set3
-                            )
-                            st.plotly_chart(fig_sentiment, use_container_width=True)
-                            
-                    
-                    with tab2:
-                        col3, = st.columns(1)
-                        
-                        with col3:
-                            # Publication time analysis
-                            hourly_dist = df['hour'].value_counts().sort_index()
-                            fig_time = px.line(
-                                x=hourly_dist.index,
-                                y=hourly_dist.values,
-                                title='Publication Time Distribution',
-                                labels={'x': 'Hour of Day', 'y': 'Number of Articles'},
-                                color_discrete_sequence=px.colors.qualitative.Set1
-                            )
-                            # Customize x-axis to show all hours
-                            fig_time.update_xaxes(tickmode='linear', tick0=0, dtick=1)
-                            st.plotly_chart(fig_time, use_container_width=True)                 
-                    
-                    with tab3:
-                        col5, = st.columns(1)
-                        
-                        with col5:
-                            # Source distribution
-                            source_counts = df['source_id'].value_counts().head(10)
-                            fig_source = px.bar(
-                                x=source_counts.index,
-                                y=source_counts.values,
-                                title='Top 10 News Sources',
-                                labels={'x': 'Source', 'y': 'Count'},
-                                color_discrete_sequence=px.colors.qualitative.Set2
-                            )
-                            st.plotly_chart(fig_source, use_container_width=True)
-                            
-                    
-                    # News table
-                    st.subheader("Latest News Articles")
-                    # Convert links to markdown
-                    df['title'] = df.apply(
-                        lambda x: f"[{x['title']}]({x['link']})", axis=1
+            # Create visualization layout
+            st.subheader("News Analysis Dashboard")
+            tab1, tab2, tab3 = st.tabs(["Sentiment Analysis", "Temporal Analysis", "Content Analysis"])
+            
+            with tab1:
+                col1, = st.columns(1)
+                
+                with col1:
+                    # Sentiment distribution
+                    sentiment_counts = df['sentiment'].value_counts()
+                    fig_sentiment = px.pie(
+                        values=sentiment_counts.values,
+                        names=sentiment_counts.index,
+                        title='Sentiment Distribution',
+                        color_discrete_sequence=px.colors.qualitative.Set3
                     )
+                    st.plotly_chart(fig_sentiment, use_container_width=True)
                     
-                    # Show the most recent articles first
-                    df_display = df.sort_values('pubDate', ascending=False)
-                    st.markdown(df_display[['title', 'ai_region', 'sentiment', 'pubDate']].head(10).to_markdown(index=False))
-                    
-                    # Download button for full data
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="Download data...",
-                        data=csv,
-                        file_name="news_analysis.csv",
-                        mime="text/csv"
+            
+            with tab2:
+                col3, = st.columns(1)
+                
+                with col3:
+                    # Publication time analysis
+                    hourly_dist = df['hour'].value_counts().sort_index()
+                    fig_time = px.line(
+                        x=hourly_dist.index,
+                        y=hourly_dist.values,
+                        title='Publication Time Distribution',
+                        labels={'x': 'Hour of Day', 'y': 'Number of Articles'},
+                        color_discrete_sequence=px.colors.qualitative.Set1
                     )
-                else:
-                    st.warning("No data found for the specified parameters.")
+                    # Customize x-axis to show all hours
+                    fig_time.update_xaxes(tickmode='linear', tick0=0, dtick=1)
+                    st.plotly_chart(fig_time, use_container_width=True)                 
+            
+            with tab3:
+                col5, = st.columns(1)
+                
+                with col5:
+                    # Source distribution
+                    source_counts = df['source_id'].value_counts().head(10)
+                    fig_source = px.bar(
+                        x=source_counts.index,
+                        y=source_counts.values,
+                        title='Top 10 News Sources',
+                        labels={'x': 'Source', 'y': 'Count'},
+                        color_discrete_sequence=px.colors.qualitative.Set2
+                    )
+                    st.plotly_chart(fig_source, use_container_width=True)
+                    
+            
+            # News table
+            st.subheader("Latest News Articles")
+            # Convert links to markdown
+            df['title'] = df.apply(
+                lambda x: f"[{x['title']}]({x['link']})", axis=1
+            )
+            
+            # Show the most recent articles first
+            df_display = df.sort_values('pubDate', ascending=False)
+            st.markdown(df_display[['title', 'ai_region', 'sentiment', 'pubDate']].head(10).to_markdown(index=False))
+            
+            # Download button for full data
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="Download data as CSV",
+                data=csv,
+                file_name=f"news_analysis_{endpoint}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
         else:
-            st.error("Please select both start and end dates")
+            st.warning("No data found for the specified parameters.")
+                
     elif search_button:
         st.error("Please enter a keyword to search")
 
