@@ -18,7 +18,7 @@ The News Intelligence Dashboard is a Streamlit-based application that connects t
 
 ### Prerequisites
 Before running the News Intelligence Dashboard, ensure you have:
-- Python 3.8 or higher
+- Python 3.9 or higher
 - pip (Python package installer)
 - NewsData.io API key (get free key at [newsdata.io](https://newsdata.io))
 
