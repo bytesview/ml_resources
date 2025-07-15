@@ -47,7 +47,7 @@ Before running the News Intelligence Dashboard, ensure you have:
 
 4. Run the application
    ```bash
-   streamlit run app.py
+   streamlit streamlit_run app.py
    ```
 
 5. Open your browser and navigate to `http://localhost:8501`
